@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="blockChainMapper">
+
+    <insert id="insertTxHashLog" parameterType="HashMap" useGeneratedKeys="true" keyProperty="TXHASH_SN">
+        INSERT INTO PLAYCXTRDDB.TCLG_TXHASH_LOG
+            (TX_KND_NM, TX_NM, BLC_NTWRK_ID, ACNT_ID, GUARDIAN_ACNT_ID, TXHASH_ID, REQUST_URL, REQUST_HTTP_METHOD, REQUST_PARAMTR, HTTP_RESULT_CODE, RSPNS_RESULT, SIGN_TXHASH, SYS_REGISTER_SN)
+        VALUES
+            (#{TX_KND_NM}, #{TX_NM}, #{NTWRK_ID}, #{ACNT_ID}, #{GUARDIAN_ACNT_ID}, #{TXHASH_ID}, #{REQUST_URL}, #{REQUST_HTTP_METHOD}, #{REQUST_PARAMTR}, #{HTTP_RESULT_CODE}, #{RSPNS_RESULT}, #{SIGN_TXHASH}, #{USER_SN})
+    </insert>
+
+    <select id="selectMngrPrivateKey" parameterType="String" resultType="String">
+        SELECT BLC_MNGR_PRIVKY FROM PLAYCOMACDB.TCCO_BLC_MNGR_BASS WHERE BLC_MNGR_ID = #{BLC_MNGR_ID}
+    </select>
+
+    <select id="selectGroupId" resultType="String">
+        SELECT BLC_GROUP_ID FROM PLAYCOMACDB.TCCO_BLC_MNGR_GROUP_INFO LIMIT 1;
+    </select>
+
+    <select id="selectTxHash" parameterType="String" resultType="String">
+        SELECT BLC_GROUP_ID FROM PLAYCXTRDDB.TCLG_TXHASH_LOG WHERE TXHASH_ID = #{TXHASH_ID} LIMIT 1;
+    </select>
+
+    <select id="selectBlcMngrBass" parameterType="String" resultType="HashMap">
+        SELECT
+            BLC_MNGR_BASS_SN
+            , BLC_MNGR_PRIVKY
+        FROM PLAYCOMACDB.TCCO_BLC_MNGR_BASS
+        WHERE BLC_MNGR_ID = #{blcMngrId}
+    </select>
+</mapper>
+
+
+
+
+
+
+
+
+
