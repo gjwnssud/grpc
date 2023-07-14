@@ -1,0 +1,151 @@
+syntax = "proto3";
+
+//import "google/protobuf/any.proto";
+
+//package com.hzn.grpc.inf;
+option java_package = "com.hzn.grpc.inf";
+option java_outer_classname = "BlockchainProto";
+
+message Object {
+  oneof value {
+    Null null = 1;
+    int32 int = 2;
+    int64 long = 3;
+    double double = 4;
+    string string = 5;
+    bool bool = 6;
+    Map map = 7;
+    List list = 8;
+    string amount = 9;
+    StringList stringList = 10;
+  }
+}
+
+enum Null {
+  NULL_VALUE = 0;
+}
+
+message Map {
+  map<string, Object> data = 1;
+}
+
+message List {
+  repeated Object data = 1;
+}
+
+message StringList {
+  repeated string data = 1;
+}
+
+//message ApiParam {
+//  string apiName = 1;
+//  string txName = 2;
+//  string uri = 3;
+//  string method = 4;
+//  string contentType = 5;
+//  string accept = 6;
+//}
+//
+//message DataParam {
+//  string createdAt = 1;
+//  string account = 2;
+//  map<string, Object> summaries = 3;
+//  string groupId = 4;
+//  repeated string accounts = 5;
+//  string noticeTxHash = 6;
+//  string inputTokenDefinitionId = 7;
+//  string amount = 8;
+//  string output = 9;
+//  repeated string inputs = 10;
+//  string ethAddress = 11;
+//  string guardian = 12;
+//  string tokenDefinitionId = 13;
+//  map<string, Object> outputs = 14;
+//
+//}
+//
+//message UserParam {
+//  string userUuid = 2;
+//  string userSn = 1;
+//  string signUserUuid = 3;
+//  string privateKey = 4;
+//}
+
+message RequestDTO {
+  map<string, Object> apiParam = 1;
+  map<string, Object> dataParam = 2;
+  map<string, Object> userParam = 3;
+}
+
+message RawRequestDTO {
+  string apiParam = 1;
+  string dataParam = 2;
+  string userParam = 3;
+}
+
+message MultipleRawRequestDTO {
+  repeated RawRequestDTO rawRequestDTO = 1;
+}
+
+message ResponseDTO {
+  int32 status = 1;
+  string responseBody = 2;
+  optional string errMsg = 3;
+  oneof DetailDTO {// 상세 응답객체 추가 필요
+    BalanceDTO balanceDTO = 4;
+    TxDTO txDTO = 5;
+    NftBalanceDTO nftBalanceDTO = 6;
+  }
+}
+
+message RawResponseDTO {
+  int32 status = 1;
+  string responseBody = 2;
+  optional string errMsg = 3;
+  string txHash = 4;
+  uint64 txHashSn = 5;
+  string txParamData = 6;
+  string txHashLogData = 7;
+}
+
+message MultipleRawResponseDTO {
+  int32 status = 1;
+  string responseBody = 2;
+  optional string errMsg = 3;
+  string txParamData = 4;
+  repeated RawResponseDTO rawResponseDTO = 5;
+}
+
+message TxDTO {
+  string txHash = 1;
+  string txHashSn = 2;
+  repeated Map param = 3;
+  map<string, Object> txHashData = 4;
+}
+
+message BalanceDTO {
+  string totalAmount = 1;
+  StringList balanceList = 2;
+}
+
+message NftBalanceDTO {
+  map<string, Object> nftBalanceInfo = 1;
+}
+
+message HealthRequestDTO {
+}
+
+message HealthResponseDTO {
+  string result = 1;
+}
+
+service BlockchainService {
+  rpc tx(RequestDTO) returns (ResponseDTO) {}
+  rpc request(RequestDTO) returns (ResponseDTO) {}
+  rpc health(HealthRequestDTO) returns (HealthResponseDTO) {}
+
+  rpc rawTx(RawRequestDTO) returns (RawResponseDTO) {}
+  rpc rawRequest(RawRequestDTO) returns (RawResponseDTO) {}
+  rpc multipleRawTx(MultipleRawRequestDTO) returns (MultipleRawResponseDTO) {}
+}
+
