@@ -9,14 +9,17 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
+    <groupId>com.hzn.grpc.client</groupId>
     <artifactId>grpc-client</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
 
     <properties>
     </properties>
 
     <dependencies>
         <dependency>
-            <groupId>com.hzn</groupId>
+            <groupId>com.hzn.grpc.inf</groupId>
             <artifactId>grpc-interface</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>
