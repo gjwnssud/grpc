@@ -33,9 +33,9 @@ public class PnAuthService {
 	 * @return
 	 */
 	public String getBlcMngrPrivky (Integer blcMngrBassSn) throws JsonProcessingException {
-		HttpResponse response = httpUtil.send (pnAuthDomain, PnAuthApiType.MANAGER_KEY_INFO, Map.of ("sn", blcMngrBassSn));
+		HttpResponse<?> response = httpUtil.send (pnAuthDomain, PnAuthApiType.MANAGER_KEY_INFO, Map.of ("sn", blcMngrBassSn));
 		if (response.getCode () != 200) throw new GrpcServerException ("privateKey call failed.");
-		Map<String, Object> dataMap = objectMapper.readValue ((String) response.getData (), Map.class);
-		return (String) ((Map) dataMap.get ("data")).get ("key");
+		Map<?, ?> dataMap = objectMapper.readValue ((String) response.getData (), Map.class);
+		return (String) ((Map<?, ?>) dataMap.get ("data")).get ("key");
 	}
 }

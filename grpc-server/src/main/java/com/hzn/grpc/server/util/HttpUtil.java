@@ -27,11 +27,11 @@ import java.util.Map;
 public class HttpUtil {
 	private final ObjectMapper objectMapper;
 
-	public HttpResponse send (String domain, ApiType apiType, Object param) {
+	public HttpResponse<?> send (String domain, ApiType apiType, Object param) {
 		return send (domain, apiType, param, null);
 	}
 
-	public HttpResponse send (String domain, ApiType apiType, Object param, Map<String, Object> headers) {
+	public HttpResponse<?> send (String domain, ApiType apiType, Object param, Map<String, Object> headers) {
 		boolean isGet = "GET".equals (apiType.getMethod ());
 		HttpURLConnection conn = null;
 		try {

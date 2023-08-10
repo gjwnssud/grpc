@@ -5,18 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hzn.grpc.inf.BlockchainProto;
 import com.hzn.grpc.inf.BlockchainServiceGrpc;
 import com.hzn.grpc.server.dao.BlockChainDao;
-import com.hzn.grpc.server.dto.KeyPair;
 import com.hzn.grpc.server.exception.GrpcServerException;
-import com.hzn.grpc.server.util.CommonUtil;
 import com.hzn.grpc.server.util.ConvertUtil;
-import com.hzn.grpc.server.util.UidUtil;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.ObjectUtils;
-import org.web3j.crypto.*;
+import org.web3j.crypto.ECKeyPair;
+import org.web3j.crypto.Sign;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -26,7 +24,6 @@ import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -57,7 +54,6 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 	private final DateTimeFormatter formatter    = DateTimeFormatter.ofPattern ("yyyy-MM-dd'T'HH:mm:ss");
 	private final ObjectMapper      objectMapper;
 	private final int               NETWORKID    = 1000;
-	private final long              decimalPoint = 1000000000000000000L;
 	private final String            amountPrefix = "amount:";
 
 	@Override
@@ -103,14 +99,11 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 			responseDTO = request (apiParam, dataParam, userParam);
 
 			String apiName = apiParam.get ("apiName").getString ();
-			switch (apiName) {
-				case "balance":
-					responseDTO = responseDTO.toBuilder ().setBalanceDTO (toBalanceDTO (responseDTO)).build ();
-					break;
-				case "nft-balance":
-					responseDTO = responseDTO.toBuilder ().setNftBalanceDTO (toNftBalanceDTO (responseDTO)).build ();
-					break;
-			}
+			responseDTO = switch (apiName) {
+				case "balance" -> responseDTO.toBuilder ().setBalanceDTO (toBalanceDTO (responseDTO)).build ();
+				case "nft-balance" -> responseDTO.toBuilder ().setNftBalanceDTO (toNftBalanceDTO (responseDTO)).build ();
+				default -> responseDTO;
+			};
 		} catch (Exception e) {
 			String message = "[request] error : " + e.getStackTrace ()[0].getLineNumber () + " line, message : " + e.getMessage ();
 			log.error (message);
@@ -229,7 +222,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 		BlockchainProto.TxDTO.Builder txDTOBuilder = BlockchainProto.TxDTO.newBuilder ();
 		txDTOBuilder.addAllParam (param);
 
-		boolean isGet = "GET".equals (apiParam.get ("method").toString ().toUpperCase ());
+		boolean isGet = "GET".equalsIgnoreCase (apiParam.get ("method").toString ());
 		HttpURLConnection conn = null;
 		try {
 			conn = getUrlConnection (apiParam, param);
@@ -286,7 +279,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 	private BlockchainProto.ResponseDTO request (Map<String, BlockchainProto.Object> apiParam, Map<String, BlockchainProto.Object> dataParam, Map<String, BlockchainProto.Object> userParam) {
 		BlockchainProto.ResponseDTO.Builder responseBuilder = BlockchainProto.ResponseDTO.newBuilder ();
 		BlockchainProto.ResponseDTO responseDTO = null;
-		boolean isGet = "GET".equals (apiParam.get ("method").getString ().toUpperCase ());
+		boolean isGet = "GET".equalsIgnoreCase (apiParam.get ("method").getString ());
 		HttpURLConnection conn;
 		try {
 			conn = getUrlConnection (apiParam, dataParam);
@@ -341,6 +334,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 			log.info ("response : " + responseDTO);
 			log.info ("===================================================");
 
+			assert responseDTO != null;
 			responseDTO = addLog (responseDTO, apiParam, userParam);
 		}
 
@@ -463,7 +457,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 		}
 
 		// txHashLog 등록
-		Map<String, Object> apiParam = null;
+		Map<?, ?> apiParam;
 		for (int i = 0, n = modifiedRawResponseDTOList.size (); i < n; i++) {
 			BlockchainProto.RawResponseDTO rawResponseDTO = modifiedRawResponseDTOList.get (i);
 			BlockchainProto.RawRequestDTO rawRequestDTO = rawRequestDTOList.get (i);
@@ -523,8 +517,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 					throw new GrpcServerException (message);
 				}
 				Object object = objectMapper.readValue (sb.toString (), Object.class);
-				if (object instanceof List) {
-					List list = (List) object;
+				if (object instanceof List<?> list) {
 					if (!ObjectUtils.isEmpty (list) && list.size () < 2) {
 						rawResponseBuilder.setTxHash (String.valueOf (list.get (0)));
 					}
@@ -676,7 +669,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 
 		blockChainDao.insertTxHashLog (txLogData);
 
-		return rawResponse.toBuilder ().setTxHashLogData (objectMapper.writeValueAsString (txLogData)).setTxHashSn (Long.valueOf (txLogData.get ("TXHASH_SN").toString ())).build ();
+		return rawResponse.toBuilder ().setTxHashLogData (objectMapper.writeValueAsString (txLogData)).setTxHashSn (Long.parseLong (txLogData.get ("TXHASH_SN").toString ())).build ();
 	}
 
 	private BlockchainProto.RawResponseDTO rawRequest (Map<String, Object> apiParam, Map<String, Object> dataParam, Map<String, Object> userParam) {
@@ -737,6 +730,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 			log.info ("response : " + rawResponseDTO);
 			log.info ("===================================================");
 
+			assert rawResponseDTO != null;
 			rawResponseDTO = addRawLog (rawResponseDTO, apiParam, userParam);
 		}
 
@@ -745,9 +739,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 
 	private ECKeyPair getECKeyPair (String privateKey) {
 		BigInteger privateKeyInBT = new BigInteger (awsS3Service.awsKmsDecrypt (privateKey), 16);
-		//		BigInteger privateKeyInBT = new BigInteger ("93385cf4046c44307c73b4b378fe62631a200a25d1f452b4593e354e22b1c5d9", 16);
-		ECKeyPair aPair = ECKeyPair.create (privateKeyInBT);
-		return aPair;
+		return ECKeyPair.create (privateKeyInBT);
 	}
 
 	private BlockchainProto.ResponseDTO addLog (BlockchainProto.ResponseDTO responseDTO, Map<String, BlockchainProto.Object> apiParam, Map<String, BlockchainProto.Object> userParam) {
@@ -796,13 +788,11 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 
 	private HttpURLConnection getUrlConnection (Map<String, BlockchainProto.Object> apiParam, Object param) throws IOException {
 		StringBuilder sb = new StringBuilder (BLC_API_URL + apiParam.get ("uri").getString ());
-		if ("GET".equals (apiParam.get ("method").getString ().toUpperCase ())) {
+		if ("GET".equalsIgnoreCase (apiParam.get ("method").getString ())) {
 			boolean isFirst = true;
 			if (param instanceof List) {
 				List<BlockchainProto.Map> paramList = (List) param;
-				paramList.stream ().forEach (p -> {
-					setQueryString (p.getDataMap (), sb, isFirst);
-				});
+				paramList.forEach (p -> setQueryString (p.getDataMap (), sb, isFirst));
 			} else if (param instanceof Map) {
 				Map<String, BlockchainProto.Object> paramMap = (Map) param;
 				setQueryString (paramMap, sb, isFirst);
@@ -814,7 +804,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 		connection.setRequestMethod (apiParam.get ("method").getString ());
 		connection.setRequestProperty ("Content-Type", apiParam.get ("contentType").getString ());
 		connection.setRequestProperty ("Accept", apiParam.get ("accept").getString ());
-		if ("POST".equals (apiParam.get ("method").getString ().toUpperCase ())) {
+		if ("POST".equalsIgnoreCase (apiParam.get ("method").getString ())) {
 			connection.setDoOutput (true);
 		}
 		return connection;
@@ -826,9 +816,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 			boolean isFirst = true;
 			if (param instanceof List) {
 				List<Map<String, Object>> paramList = (List) param;
-				paramList.stream ().forEach (p -> {
-					setQueryString2 (p, sb, isFirst);
-				});
+				paramList.forEach (p -> setQueryString2 (p, sb, isFirst));
 			} else if (param instanceof Map) {
 				Map<String, Object> paramMap = (Map) param;
 				setQueryString2 (paramMap, sb, isFirst);
@@ -893,10 +881,8 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 				Object obj2 = param.get (key);
 				if (obj2 instanceof Map || obj2 instanceof List) {
 					correctAmountValue (obj2);
-				} else if (obj2 instanceof String) {
-					String value = (String) obj2;
+				} else if (obj2 instanceof String value) {
 					if (value.startsWith (amountPrefix)) {
-						//						value = CommonUtil.padding (value.replace (amountPrefix, ""), 18).replace (".", "");
 						value = ConvertUtil.toBigInteger (value.replace (amountPrefix, ""), 18).toString ();
 						param.put (key, value);
 					}
@@ -904,13 +890,11 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 			}
 		} else if (obj instanceof List) {
 			List<Object> param = (List) obj;
-			param.stream ().forEach (obj2 -> {
+			param.forEach (obj2 -> {
 				if (obj2 instanceof Map || obj2 instanceof List) {
 					correctAmountValue (obj2);
-				} else if (obj2 instanceof String) {
-					String value = (String) obj2;
+				} else if (obj2 instanceof String value) {
 					if (value.startsWith (amountPrefix)) {
-						//						value = CommonUtil.padding (value.replace (amountPrefix, ""), 18).replace (".", "");
 						value = ConvertUtil.toBigInteger (value.replace (amountPrefix, ""), 18).toString ();
 						param.add (value);
 					}
@@ -929,7 +913,6 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 			Map<String, Object> map = objectMapper.readValue (responseDTO.getResponseBody (), Map.class);
 			Map<String, Object> typeMap = (Map) map.get (type);
 			if (typeMap != null) {
-				//				builder.setTotalAmount (CommonUtil.unPadding (new BigDecimal (String.valueOf (typeMap.get ("totalAmount"))).divide (BigDecimal.valueOf (decimalPoint), 18, RoundingMode.CEILING).toPlainString ()));
 				builder.setTotalAmount (ConvertUtil.toBigDecimal (String.valueOf (typeMap.get ("totalAmount")), 18).toPlainString ());
 				Map<String, Object> data = (Map) typeMap.get ("unused");
 				Set<String> bal = data.keySet ();
@@ -942,16 +925,10 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 	}
 
 	public BlockchainProto.NftBalanceDTO toNftBalanceDTO (BlockchainProto.ResponseDTO responseDTO) throws JsonProcessingException {
-		return toNftBalanceDTO (responseDTO, "LM");
-	}
-
-	public BlockchainProto.NftBalanceDTO toNftBalanceDTO (BlockchainProto.ResponseDTO responseDTO, String type) throws JsonProcessingException {
 		BlockchainProto.NftBalanceDTO.Builder builder = BlockchainProto.NftBalanceDTO.newBuilder ();
 		if (responseDTO.getStatus () == 200) {
 			Map<String, Object> tokenIdMap = objectMapper.readValue (responseDTO.getResponseBody (), Map.class);
-			Iterator<String> toKenIdItr = tokenIdMap.keySet ().iterator ();
-			while (toKenIdItr.hasNext ()) {
-				String key = toKenIdItr.next ();
+			for (String key : tokenIdMap.keySet ()) {
 				Map<String, Object> infoMap = (Map) tokenIdMap.get (key);
 				if (infoMap != null) {
 					builder.putNftBalanceInfo (key, BlockchainProto.Object.newBuilder ().setString ((String) infoMap.get ("txHash")).build ());
@@ -963,7 +940,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 
 	private List<Map<String, Object>> protoMapListToMapList (List<BlockchainProto.Map> sourceParams) {
 		List<Map<String, Object>> targetParams = new ArrayList<> ();
-		sourceParams.stream ().forEach (m -> {
+		sourceParams.forEach (m -> {
 			Map<String, Object> targetMap = protoMapToMap (m.getDataMap ());
 			targetParams.add (targetMap);
 		});
@@ -972,41 +949,20 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 
 	private Map<String, Object> protoMapToMap (Map<String, BlockchainProto.Object> sourceParam) {
 		Map<String, Object> targetParam = new HashMap<> ();
-		Iterator<String> itr = sourceParam.keySet ().iterator ();
-		while (itr.hasNext ()) {
-			String key = (String) itr.next ();
+		for (String key : sourceParam.keySet ()) {
 			BlockchainProto.Object value = sourceParam.get (key);
 			switch (value.getValueCase ()) {
-				case BOOL:
-					targetParam.put (key, value.getBool ());
-					break;
-				case LIST:
-					targetParam.put (key, protoObjectListToObjectList (value.getList ().getDataList ()));
-					break;
-				case MAP:
-					targetParam.put (key, protoMapToMap (value.getMap ().getDataMap ()));
-					break;
-				case DOUBLE:
-					targetParam.put (key, value.getDouble ());
-					break;
-				case LONG:
-					targetParam.put (key, value.getLong ());
-					break;
-				case STRING:
-					targetParam.put (key, value.getString ());
-					break;
-				case AMOUNT:
-					targetParam.put (key, value.getAmount ());
-					break;
-				case INT:
-					targetParam.put (key, value.getInt ());
-					break;
-				case STRINGLIST:
-					targetParam.put (key, new ArrayList<> (value.getStringList ().getDataList ()));
-					break;
-				case NULL:
-				default:
-					break;
+				case BOOL -> targetParam.put (key, value.getBool ());
+				case LIST -> targetParam.put (key, protoObjectListToObjectList (value.getList ().getDataList ()));
+				case MAP -> targetParam.put (key, protoMapToMap (value.getMap ().getDataMap ()));
+				case DOUBLE -> targetParam.put (key, value.getDouble ());
+				case LONG -> targetParam.put (key, value.getLong ());
+				case STRING -> targetParam.put (key, value.getString ());
+				case AMOUNT -> targetParam.put (key, value.getAmount ());
+				case INT -> targetParam.put (key, value.getInt ());
+				case STRINGLIST -> targetParam.put (key, new ArrayList<> (value.getStringList ().getDataList ()));
+				default -> {
+				}
 			}
 		}
 
@@ -1016,38 +972,19 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 	private List<Object> protoObjectListToObjectList (List<BlockchainProto.Object> sourceList) {
 		List<Object> targetList = new ArrayList<> ();
 
-		sourceList.stream ().forEach (value -> {
+		sourceList.forEach (value -> {
 			switch (value.getValueCase ()) {
-				case BOOL:
-					targetList.add (value.getBool ());
-					break;
-				case LIST:
-					targetList.add (protoObjectListToObjectList (value.getList ().getDataList ()));
-					break;
-				case MAP:
-					targetList.add (protoMapToMap (value.getMap ().getDataMap ()));
-					break;
-				case DOUBLE:
-					targetList.add (value.getDouble ());
-					break;
-				case LONG:
-					targetList.add (value.getLong ());
-					break;
-				case STRING:
-					targetList.add (value.getString ());
-					break;
-				case AMOUNT:
-					targetList.add (value.getAmount ());
-					break;
-				case INT:
-					targetList.add (value.getInt ());
-					break;
-				case STRINGLIST:
-					targetList.add (new ArrayList<> (value.getStringList ().getDataList ()));
-					break;
-				case NULL:
-				default:
-					break;
+				case BOOL -> targetList.add (value.getBool ());
+				case LIST -> targetList.add (protoObjectListToObjectList (value.getList ().getDataList ()));
+				case MAP -> targetList.add (protoMapToMap (value.getMap ().getDataMap ()));
+				case DOUBLE -> targetList.add (value.getDouble ());
+				case LONG -> targetList.add (value.getLong ());
+				case STRING -> targetList.add (value.getString ());
+				case AMOUNT -> targetList.add (value.getAmount ());
+				case INT -> targetList.add (value.getInt ());
+				case STRINGLIST -> targetList.add (new ArrayList<> (value.getStringList ().getDataList ()));
+				default -> {
+				}
 			}
 		});
 
@@ -1057,7 +994,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 	private List<BlockchainProto.Object> objectListToProtoObjectList (List<Object> sourceList) {
 		List<BlockchainProto.Object> targetList = new ArrayList<> ();
 
-		sourceList.stream ().forEach (value -> {
+		sourceList.forEach (value -> {
 			if (value instanceof Boolean) {
 				targetList.add (BlockchainProto.Object.newBuilder ().setBool ((Boolean) value).build ());
 			} else if (value instanceof List) {
@@ -1084,7 +1021,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 
 	private List<BlockchainProto.Map> mapListToProtoMapList (List<Map<String, Object>> sourceParams) {
 		List<BlockchainProto.Map> targetParams = new ArrayList<> ();
-		sourceParams.stream ().forEach (m -> {
+		sourceParams.forEach (m -> {
 			BlockchainProto.Map map = BlockchainProto.Map.newBuilder ().putAllData (mapToProtoMap (m)).build ();
 			targetParams.add (map);
 		});
@@ -1121,39 +1058,13 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 		return targetParam;
 	}
 
-	public KeyPair getKeyPair () {
-		String salt = UidUtil.getID ("") + CommonUtil.setRandomCode (36) + UidUtil.getID ("");
-		try {
-			SecureRandom seed = new SecureRandom ();
-			seed.setSeed (salt.getBytes ());
-			ECKeyPair ecKeyPair = Keys.createEcKeyPair (seed);
-			BigInteger privateKeyInDec = ecKeyPair.getPrivateKey ();
-			BigInteger publicKeyInDec = ecKeyPair.getPublicKey ();
-			WalletFile aWallet = Wallet.createLight (salt, ecKeyPair);
-
-			KeyPair response = new KeyPair ();
-			response.setPrivateKey (awsS3Service.awsKmsEncrypt (privateKeyInDec.toString (16)));
-			response.setPublicKey (publicKeyInDec.toString (16));
-			response.setAddress (aWallet.getAddress ());
-
-			return response;
-
-		} catch (Exception e) {
-			e.printStackTrace ();
-		}
-
-		return new KeyPair ();
-	}
-
 	private Map<String, BlockchainProto.Object> correctAmountForProtoMap (Map<String, BlockchainProto.Object> param) {
 		Map<String, BlockchainProto.Object> resultMap = new HashMap<> ();
 		if (param != null) {
 			for (String key : param.keySet ()) {
 				BlockchainProto.Object value = param.get (key);
 				switch (value.getValueCase ()) {
-					case AMOUNT ->
-						// DOT(.) 제거 후 저장
-							resultMap.put (key, BlockchainProto.Object.newBuilder ().setAmount (ConvertUtil.toBigInteger (value.getAmount (), 18).toString ()).build ());
+					case AMOUNT -> resultMap.put (key, BlockchainProto.Object.newBuilder ().setAmount (ConvertUtil.toBigInteger (value.getAmount (), 18).toString ()).build ()); // DOT(.) 제거 후 저장
 					case MAP -> resultMap.put (key, BlockchainProto.Object.newBuilder ().setMap (BlockchainProto.Map.newBuilder ().putAllData (correctAmountForProtoMap (value.getMap ().getDataMap ()))).build ());
 					case LIST -> resultMap.put (key, BlockchainProto.Object.newBuilder ().setList (BlockchainProto.List.newBuilder ().addAllData (correctAmountForProtoList (value.getList ().getDataList ())).build ()).build ());
 					default -> resultMap.put (key, value);
@@ -1169,9 +1080,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 		if (param != null) {
 			param.forEach (p -> {
 				switch (p.getValueCase ()) {
-					case AMOUNT ->
-						// DOT(.) 제거 후 저장
-							resultList.add (BlockchainProto.Object.newBuilder ().setAmount (ConvertUtil.toBigInteger (p.getAmount (), 18).toString ()).build ());
+					case AMOUNT -> resultList.add (BlockchainProto.Object.newBuilder ().setAmount (ConvertUtil.toBigInteger (p.getAmount (), 18).toString ()).build ());// DOT(.) 제거 후 저장
 					case MAP -> resultList.add (BlockchainProto.Object.newBuilder ().setMap (BlockchainProto.Map.newBuilder ().putAllData (correctAmountForProtoMap (p.getMap ().getDataMap ()))).build ());
 					case LIST -> resultList.add (BlockchainProto.Object.newBuilder ().setList (BlockchainProto.List.newBuilder ().addAllData (correctAmountForProtoList (p.getList ().getDataList ())).build ()).build ());
 					default -> resultList.add (p);
@@ -1199,9 +1108,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 		// BigInteger parsing 오류 처리
 		if (hexMessageHex.length == 33) {
 			byte[] test = new byte[32];
-			for (int i = 1; i < hexMessageHex.length; i++) {
-				test[i - 1] = hexMessageHex[i];
-			}
+			System.arraycopy (hexMessageHex, 1, test, 0, hexMessageHex.length - 1);
 			hexMessageHex = test;
 		}
 
@@ -1241,9 +1148,7 @@ public class BlockChainService extends BlockchainServiceGrpc.BlockchainServiceIm
 		// BigInteger parsing 오류 처리
 		if (hexMessageHex.length == 33) {
 			byte[] test = new byte[32];
-			for (int j = 1; j < hexMessageHex.length; j++) {
-				test[j - 1] = hexMessageHex[j];
-			}
+			System.arraycopy (hexMessageHex, 1, test, 0, hexMessageHex.length - 1);
 			hexMessageHex = test;
 		}
 

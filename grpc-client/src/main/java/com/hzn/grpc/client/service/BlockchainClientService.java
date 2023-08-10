@@ -27,9 +27,9 @@ import java.util.Map;
 @Service("BlockchainClientService")
 public class BlockchainClientService {
 	@GrpcClient("blockchain")
-	private BlockchainServiceGrpc.BlockchainServiceBlockingStub blockchainServiceBlockingStub;
-	private ObjectMapper                                        objectMapper      = new ObjectMapper ();
-	private DateTimeFormatter                                   dateTimeFormatter = DateTimeFormatter.ofPattern ("yyyy-MM-dd'T'HH:mm:ss");
+	private       BlockchainServiceGrpc.BlockchainServiceBlockingStub blockchainServiceBlockingStub;
+	private final ObjectMapper                                        objectMapper      = new ObjectMapper ();
+	private final DateTimeFormatter                                   dateTimeFormatter = DateTimeFormatter.ofPattern ("yyyy-MM-dd'T'HH:mm:ss");
 
 	/**
 	 * 블록체인 중계 서버 요청
@@ -91,6 +91,7 @@ public class BlockchainClientService {
 			rawResponseDTO = BlockchainProto.RawResponseDTO.newBuilder ().setStatus (500).setErrMsg (message).build ();
 		} finally {
 			log.info ("====================================================");
+			assert apiParam != null;
 			log.info ("Api Name : {}", apiParam.get ("apiName"));
 			log.info ("Tx Name : {}", apiParam.get ("txName"));
 			log.info ("ResponseDTO : {}", rawResponseDTO);
